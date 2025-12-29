@@ -22,12 +22,8 @@ import {
   Database
 } from 'lucide-react';
 
-// Global declaration for process.env
-declare const process: {
-  env: {
-    API_KEY: string;
-  };
-};
+// Global declaration for process.env used by Vite/Node
+declare const process: any;
 
 type Mode = 'explain' | 'summarize' | 'practice';
 type Subject = 'General' | 'Mathematics' | 'Science' | 'History' | 'Literature' | 'Computer Science';
@@ -49,6 +45,7 @@ interface StudyResult {
   practiceQuestions?: PracticeQuestion[];
 }
 
+// Math Rendering Component
 const MathText: React.FC<{ text: string }> = ({ text }) => {
   const parts = useMemo(() => {
     const combinedRegex = /(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/g;
@@ -267,25 +264,24 @@ const Dashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     setIsLoading(true);
 
     try {
-      // Re-initialize AI right before the call to ensure process.env.API_KEY is available
+      // Re-initialize AI to ensure process.env.API_KEY is correctly resolved at runtime
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const model = activeMode === 'explain' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+      
+      // Use flash for both to maximize availability and speed
+      const model = 'gemini-3-flash-preview';
       
       const config: any = {
-        systemInstruction: `You are an expert AI tutor specialized in ${activeSubject}. Provide direct, helpful responses for the user's query. 
+        systemInstruction: `You are an expert AI tutor specialized in ${activeSubject}. 
+Provide direct, helpful responses for the user's query.
 
-Rules for your response:
-1. DO NOT introduce yourself or say "I am AlphaLight" or "As an AI tutor...".
-2. DO NOT use boilerplate greetings or conclusions.
-3. Start immediately with the content (explanation, summary, or questions).
-4. Use LaTeX for math/formulas ($ for inline, $$ for block).
-5. Avoid Markdown characters like * or # in your final text.
-6. If in practice mode, provide high-quality educational questions.`,
+Rules:
+1. Start immediately with the content. No self-introductions.
+2. Use LaTeX for math ($ for inline, $$ for block).
+3. If in practice mode, provide high-quality educational questions in JSON format.
+4. Keep explanations clear and student-focused.`,
       };
       
-      if (activeMode === 'explain') config.thinkingConfig = { thinkingBudget: 8000 };
-      
-      let prompt = `Topic: ${query}. Mode: ${activeMode}.`;
+      let prompt = `Query Type: ${activeMode}. Subject: ${activeSubject}. Topic: ${query}.`;
       
       if (activeMode === 'practice') {
           config.responseMimeType = "application/json";
@@ -294,24 +290,27 @@ Rules for your response:
             properties: {
               title: { type: Type.STRING },
               content: { type: Type.STRING },
-              questions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.INTEGER }, explanation: { type: Type.STRING }, hint: { type: Type.STRING } }, required: ['question', 'options', 'correctAnswer', 'explanation', 'hint'] } }
+              questions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { 
+                question: { type: Type.STRING }, 
+                options: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+                correctAnswer: { type: Type.INTEGER }, 
+                explanation: { type: Type.STRING }, 
+                hint: { type: Type.STRING } 
+              }, required: ['question', 'options', 'correctAnswer', 'explanation', 'hint'] } }
             },
             required: ['title', 'content', 'questions']
           };
       }
 
-      console.log('Sending request to model:', model, 'mode:', activeMode);
       const response = await ai.models.generateContent({ model, contents: prompt, config });
       
-      if (!response.text) {
-        throw new Error("Empty response from AI.");
-      }
+      if (!response.text) throw new Error("No response content received.");
 
       let result: StudyResult;
       if (activeMode === 'practice') {
         const data = JSON.parse(response.text);
         result = { 
-          title: data.title || "Practice Questions", 
+          title: data.title || query, 
           content: data.content || "", 
           type: 'practice', 
           subject: activeSubject, 
@@ -319,7 +318,13 @@ Rules for your response:
           practiceQuestions: data.questions 
         };
       } else {
-        result = { title: query, content: response.text, type: activeMode, subject: activeSubject, timestamp: Date.now() };
+        result = { 
+          title: query, 
+          content: response.text, 
+          type: activeMode, 
+          subject: activeSubject, 
+          timestamp: Date.now() 
+        };
       }
       
       setCurrentResult(result);
@@ -327,8 +332,8 @@ Rules for your response:
       setQuizProgress({});
       setQuery('');
     } catch (e) { 
-      console.error('AlphaLight AI Error:', e);
-      alert('The AI study assistant encountered an error. Please check your connection or try again later.');
+      console.error('AI Processing Error:', e);
+      alert('We hit a snag connecting to the AI. This usually happens if the API key is invalid or the connection dropped. Please try again.');
     } finally { 
       setIsLoading(false); 
     }
@@ -336,6 +341,7 @@ Rules for your response:
 
   return (
     <div className="flex h-full w-full bg-[#fcfdfe] text-slate-900">
+      {/* Sidebar */}
       <aside className="w-80 bg-white border-r border-slate-100 flex flex-col hidden lg:flex relative z-20 shadow-sm">
         <div className="p-10 flex items-center gap-4">
           <div className="bg-sky-600 p-3 rounded-2xl shadow-xl shadow-sky-500/20">
@@ -384,6 +390,7 @@ Rules for your response:
         </div>
       </aside>
 
+      {/* Main Area */}
       <main className="flex-1 flex flex-col overflow-hidden relative bg-white">
         <header className="h-24 px-12 flex items-center justify-between z-10 border-b border-slate-50">
           <div className="flex p-1.5 bg-slate-100 rounded-[1.5rem]">
@@ -433,14 +440,19 @@ Rules for your response:
                             else classes += "border-transparent bg-white/50 text-slate-400";
 
                             return (
-                              <button key={oIdx} disabled={hasSelected} onClick={() => setQuizProgress(p => ({...p, [qIdx]: {selected: oIdx, revealed: true}}))} className={classes}>
+                              <button 
+                                key={oIdx} 
+                                disabled={hasSelected} 
+                                onClick={() => setQuizProgress(p => ({...p, [qIdx]: {selected: oIdx, revealed: true}}))} 
+                                className={classes}
+                              >
                                 <MathText text={opt} />
                               </button>
                             );
                           })}
                         </div>
                         {quizProgress[qIdx]?.selected !== null && (
-                           <div className="mt-8 p-6 bg-white rounded-2xl border border-slate-100">
+                           <div className="mt-8 p-6 bg-white rounded-2xl border border-slate-100 animate-fade-in">
                               <p className="font-black text-sky-700 mb-2">Explanation:</p>
                               <div className="text-slate-600 font-bold"><MathText text={q.explanation} /></div>
                            </div>
@@ -454,6 +466,7 @@ Rules for your response:
           </div>
         </section>
 
+        {/* Search Bar */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-12 z-30">
           <div className="bg-white border border-slate-100 p-4 rounded-[3rem] shadow-2xl">
             <form onSubmit={handleStudy} className="relative flex items-center gap-4">
