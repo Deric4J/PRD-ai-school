@@ -22,7 +22,8 @@ import {
   Database
 } from 'lucide-react';
 
-// Declaration to satisfy TypeScript for process.env
+// Declaration to satisfy TypeScript for process.env.API_KEY
+// This allows the build to pass while maintaining the requirement to use process.env.API_KEY directly.
 declare const process: {
   env: {
     API_KEY: string;
