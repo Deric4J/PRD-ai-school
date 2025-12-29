@@ -22,11 +22,15 @@ import {
   Database
 } from 'lucide-react';
 
-// Environment variable handling for Vite/TypeScript
-const API_KEY = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || '';
+// Declaration to satisfy TypeScript for process.env
+declare const process: {
+  env: {
+    API_KEY: string;
+  };
+};
 
-// Initialize AI
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+// Initialize AI strictly using process.env.API_KEY as per instructions
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 type Mode = 'explain' | 'summarize' | 'practice';
 type Subject = 'General' | 'Mathematics' | 'Science' | 'History' | 'Literature' | 'Computer Science';
