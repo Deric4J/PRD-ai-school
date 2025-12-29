@@ -1,64 +1,40 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI, Type } from '@google/genai';
 import katex from 'katex';
 import { 
-  BarChart as ReBarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  LineChart as ReLineChart, 
-  Line, 
-  AreaChart, 
-  Area
-} from 'recharts';
-import { 
-  BookOpen, 
   LayoutDashboard, 
   MessageSquare, 
   FileText, 
   PencilLine, 
-  ChevronRight, 
   Loader2, 
   Search,
   Sparkles,
-  History,
   GraduationCap,
   Lightbulb,
-  CheckCircle2,
-  AlertCircle,
-  BarChart3,
-  TrendingUp,
-  Sigma,
   ArrowRight,
   User,
   Lock,
   Mail,
   Zap,
-  Github,
   LogOut,
-  BrainCircuit,
-  Rocket,
   ShieldCheck,
   Database
 } from 'lucide-react';
+
+// Declare process for TypeScript to satisfy environment variable usage
+declare const process: {
+  env: {
+    API_KEY: string;
+    [key: string]: string;
+  };
+};
 
 // Initialize AI
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 type Mode = 'explain' | 'summarize' | 'practice';
 type Subject = 'General' | 'Mathematics' | 'Science' | 'History' | 'Literature' | 'Computer Science';
-
-interface ChartData {
-  type: 'bar' | 'line' | 'area';
-  title: string;
-  data: { label: string; value: number }[];
-  xAxisLabel: string;
-  yAxisLabel: string;
-}
 
 interface PracticeQuestion {
   question: string;
@@ -75,7 +51,6 @@ interface StudyResult {
   subject: Subject;
   timestamp: number;
   practiceQuestions?: PracticeQuestion[];
-  chart?: ChartData;
 }
 
 // Components
@@ -122,43 +97,6 @@ const MathText: React.FC<{ text: string }> = ({ text }) => {
           return <code key={i}>{part.content}</code>;
         }
       })}
-    </div>
-  );
-};
-
-const StudyChart: React.FC<{ chart: ChartData }> = ({ chart }) => {
-  const ChartComponent = chart.type === 'bar' ? ReBarChart : chart.type === 'line' ? ReLineChart : AreaChart;
-  return (
-    <div className="my-8 p-8 bg-white/60 backdrop-blur-md rounded-[2.5rem] border border-sky-100 shadow-xl animate-fade-in animate-glow">
-      <h3 className="text-xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-        <div className="p-2 bg-sky-100 rounded-xl text-sky-600">
-          {chart.type === 'bar' ? <BarChart3 className="w-5 h-5" /> : <TrendingUp className="w-5 h-5" />}
-        </div>
-        {chart.title}
-      </h3>
-      <div className="h-80 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <ChartComponent data={chart.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(14, 165, 233, 0.1)" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-            <Tooltip contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 30px rgba(14, 165, 233, 0.1)' }} />
-            {chart.type === 'bar' ? (
-              <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
-            ) : chart.type === 'line' ? (
-              <Line type="monotone" dataKey="value" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 6, fill: '#0ea5e9', strokeWidth: 3, stroke: '#fff' }} />
-            ) : (
-              <Area type="monotone" dataKey="value" stroke="#0ea5e9" fill="url(#colorValue)" />
-            )}
-            <defs>
-              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-          </ChartComponent>
-        </ResponsiveContainer>
-      </div>
     </div>
   );
 };
@@ -365,11 +303,18 @@ Rules for your response:
 
     try {
       const response = await ai.models.generateContent({ model, contents: prompt, config });
-      const textResponse = response.text;
+      const textResponse = response.text || "";
       let result: StudyResult;
       if (activeMode === 'practice') {
         const data = JSON.parse(textResponse);
-        result = { title: data.title, content: data.content, type: 'practice', subject: activeSubject, timestamp: Date.now(), practiceQuestions: data.questions };
+        result = { 
+          title: data.title || "Practice Questions", 
+          content: data.content || "", 
+          type: 'practice', 
+          subject: activeSubject, 
+          timestamp: Date.now(), 
+          practiceQuestions: data.questions 
+        };
       } else {
         result = { title: query, content: textResponse, type: activeMode, subject: activeSubject, timestamp: Date.now() };
       }
