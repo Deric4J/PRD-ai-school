@@ -22,16 +22,12 @@ import {
   Database
 } from 'lucide-react';
 
-// Declaration to satisfy TypeScript for process.env.API_KEY
-// This allows the build to pass while maintaining the requirement to use process.env.API_KEY directly.
+// Global declaration for process.env
 declare const process: {
   env: {
     API_KEY: string;
   };
 };
-
-// Initialize AI strictly using process.env.API_KEY as per instructions
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 type Mode = 'explain' | 'summarize' | 'practice';
 type Subject = 'General' | 'Mathematics' | 'Science' | 'History' | 'Literature' | 'Computer Science';
@@ -53,7 +49,6 @@ interface StudyResult {
   practiceQuestions?: PracticeQuestion[];
 }
 
-// Components
 const MathText: React.FC<{ text: string }> = ({ text }) => {
   const parts = useMemo(() => {
     const combinedRegex = /(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/g;
@@ -131,9 +126,9 @@ const AuthForm: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
   const inputClasses = "w-full bg-white border-2 border-slate-200 rounded-2xl py-4 pl-12 pr-4 focus:bg-white focus:border-sky-500 focus:outline-none transition-all font-bold text-slate-950 placeholder:text-slate-400 placeholder:font-medium";
 
   return (
-    <div className="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 animate-fade-in relative overflow-hidden">
+    <div className="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 relative overflow-hidden">
       {status === 'connecting' && (
-        <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-50 flex flex-col items-center justify-center space-y-6 animate-fade-in">
+        <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-50 flex flex-col items-center justify-center space-y-6">
           <Database className="w-16 h-16 text-sky-500 animate-bounce" />
           <div className="text-center">
             <p className="text-slate-900 font-black tracking-tight text-lg">Encrypting Session</p>
@@ -143,7 +138,7 @@ const AuthForm: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
       )}
       
       {status === 'success' && (
-        <div className="absolute inset-0 bg-emerald-500 z-50 flex flex-col items-center justify-center text-white animate-fade-in">
+        <div className="absolute inset-0 bg-emerald-500 z-50 flex flex-col items-center justify-center text-white">
           <ShieldCheck className="w-20 h-20 mb-4 animate-bounce" />
           <h3 className="text-2xl font-black">Authorized</h3>
         </div>
@@ -270,40 +265,51 @@ const Dashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     if (e) e.preventDefault();
     if (!query.trim() || isLoading) return;
     setIsLoading(true);
-    const model = activeMode === 'explain' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
-    const config: any = {
-      systemInstruction: `You are an expert AI tutor specialized in ${activeSubject}. Provide direct, helpful responses for the user's query. 
+
+    try {
+      // Re-initialize AI right before the call to ensure process.env.API_KEY is available
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const model = activeMode === 'explain' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+      
+      const config: any = {
+        systemInstruction: `You are an expert AI tutor specialized in ${activeSubject}. Provide direct, helpful responses for the user's query. 
 
 Rules for your response:
 1. DO NOT introduce yourself or say "I am AlphaLight" or "As an AI tutor...".
 2. DO NOT use boilerplate greetings or conclusions.
 3. Start immediately with the content (explanation, summary, or questions).
-4. Use LaTeX for math/formulas.
-5. Avoid Markdown characters like * or # in your final text as the UI handles formatting differently.
+4. Use LaTeX for math/formulas ($ for inline, $$ for block).
+5. Avoid Markdown characters like * or # in your final text.
 6. If in practice mode, provide high-quality educational questions.`,
-    };
-    if (activeMode === 'explain') config.thinkingConfig = { thinkingBudget: 8000 };
-    
-    let prompt = `Topic: ${query}. Mode: ${activeMode}.`;
-    if (activeMode === 'practice') {
-        config.responseMimeType = "application/json";
-        config.responseSchema = {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            content: { type: Type.STRING },
-            questions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.INTEGER }, explanation: { type: Type.STRING }, hint: { type: Type.STRING } }, required: ['question', 'options', 'correctAnswer', 'explanation', 'hint'] } }
-          },
-          required: ['title', 'content', 'questions']
-        };
-    }
+      };
+      
+      if (activeMode === 'explain') config.thinkingConfig = { thinkingBudget: 8000 };
+      
+      let prompt = `Topic: ${query}. Mode: ${activeMode}.`;
+      
+      if (activeMode === 'practice') {
+          config.responseMimeType = "application/json";
+          config.responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              content: { type: Type.STRING },
+              questions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING } }, correctAnswer: { type: Type.INTEGER }, explanation: { type: Type.STRING }, hint: { type: Type.STRING } }, required: ['question', 'options', 'correctAnswer', 'explanation', 'hint'] } }
+            },
+            required: ['title', 'content', 'questions']
+          };
+      }
 
-    try {
+      console.log('Sending request to model:', model, 'mode:', activeMode);
       const response = await ai.models.generateContent({ model, contents: prompt, config });
-      const textResponse = response.text || "";
+      
+      if (!response.text) {
+        throw new Error("Empty response from AI.");
+      }
+
       let result: StudyResult;
       if (activeMode === 'practice') {
-        const data = JSON.parse(textResponse);
+        const data = JSON.parse(response.text);
         result = { 
           title: data.title || "Practice Questions", 
           content: data.content || "", 
@@ -313,13 +319,19 @@ Rules for your response:
           practiceQuestions: data.questions 
         };
       } else {
-        result = { title: query, content: textResponse, type: activeMode, subject: activeSubject, timestamp: Date.now() };
+        result = { title: query, content: response.text, type: activeMode, subject: activeSubject, timestamp: Date.now() };
       }
+      
       setCurrentResult(result);
       setHistory(prev => [result, ...prev].slice(0, 15));
       setQuizProgress({});
       setQuery('');
-    } catch (e) { console.error(e); } finally { setIsLoading(false); }
+    } catch (e) { 
+      console.error('AlphaLight AI Error:', e);
+      alert('The AI study assistant encountered an error. Please check your connection or try again later.');
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   return (
@@ -384,7 +396,7 @@ Rules for your response:
         <section className="flex-1 overflow-y-auto px-12 pt-10 custom-scrollbar">
           <div className="max-w-4xl mx-auto pb-44">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center h-96 animate-fade-in">
+              <div className="flex flex-col items-center justify-center h-96">
                 <Loader2 className="w-20 h-20 text-sky-500 animate-spin" />
                 <p className="mt-8 text-2xl font-black text-slate-900">AlphaLight is thinking...</p>
               </div>
@@ -397,7 +409,7 @@ Rules for your response:
                 <p className="text-slate-400 text-xl max-w-lg mx-auto font-bold">Ask anything about your coursework below.</p>
               </div>
             ) : (
-              <div className="bg-white p-12 lg:p-20 rounded-[4rem] border border-slate-100 shadow-xl animate-fade-in">
+              <div className="bg-white p-12 lg:p-20 rounded-[4rem] border border-slate-100 shadow-xl">
                 <h2 className="text-4xl lg:text-6xl font-black text-slate-900 mb-10 tracking-tighter">{currentResult.title}</h2>
                 <div className="prose prose-slate max-w-none text-slate-700 text-xl leading-relaxed space-y-8">
                   <MathText text={currentResult.content} />
@@ -428,7 +440,7 @@ Rules for your response:
                           })}
                         </div>
                         {quizProgress[qIdx]?.selected !== null && (
-                           <div className="mt-8 p-6 bg-white rounded-2xl border border-slate-100 animate-fade-in">
+                           <div className="mt-8 p-6 bg-white rounded-2xl border border-slate-100">
                               <p className="font-black text-sky-700 mb-2">Explanation:</p>
                               <div className="text-slate-600 font-bold"><MathText text={q.explanation} /></div>
                            </div>
