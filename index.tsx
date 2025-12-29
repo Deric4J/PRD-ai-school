@@ -22,16 +22,11 @@ import {
   Database
 } from 'lucide-react';
 
-// Declare process for TypeScript to satisfy environment variable usage
-declare const process: {
-  env: {
-    API_KEY: string;
-    [key: string]: string;
-  };
-};
+// Environment variable handling for Vite/TypeScript
+const API_KEY = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || '';
 
 // Initialize AI
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 type Mode = 'explain' | 'summarize' | 'practice';
 type Subject = 'General' | 'Mathematics' | 'Science' | 'History' | 'Literature' | 'Computer Science';
@@ -63,7 +58,6 @@ const MathText: React.FC<{ text: string }> = ({ text }) => {
     
     while ((match = combinedRegex.exec(text)) !== null) {
       if (match.index > lastIndex) {
-        // Clean text by removing * and # as requested
         const cleanText = text.substring(lastIndex, match.index).replace(/[*#]/g, '');
         result.push({ type: 'text', content: cleanText });
       }
@@ -76,7 +70,6 @@ const MathText: React.FC<{ text: string }> = ({ text }) => {
       lastIndex = combinedRegex.lastIndex;
     }
     if (lastIndex < text.length) {
-      // Clean final text segment
       const cleanText = text.substring(lastIndex).replace(/[*#]/g, '');
       result.push({ type: 'text', content: cleanText });
     }
@@ -106,7 +99,6 @@ const AuthForm: React.FC<{ onAuth: () => void }> = ({ onAuth }) => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'connecting' | 'success' | 'error'>('idle');
   
-  // Controlled form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
